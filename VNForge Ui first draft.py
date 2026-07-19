@@ -1,8 +1,3 @@
-"""
-VNForge Desktop App — Person 2 owns this file.
-CustomTkinter UI: input panel + output tabs + export buttons.
-"""
-
 import sys
 import os
 import threading
@@ -306,10 +301,6 @@ class VNForgeApp(ctk.CTk):
         path = export_markdown_report(self._compiled_scene)
         self._set_status(f"✓ Saved: {os.path.basename(path)}", "#22c55e")
 
-
-# ---------------------------------------------------------------------------
-# Entry point (also called from run_desktop.py)
-# ---------------------------------------------------------------------------
 
 def run():
     app = VNForgeApp()

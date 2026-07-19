@@ -1,16 +1,12 @@
 # core/schemas.py
 # Defines the data structures for everything VNForge produces.
-
-# These are Pydantic models — they act as both type hints AND validators.
-# When the compiler parses JSON from the AI model, it passes the raw dict
-# into VNForgeResult(**data). Pydantic will:
-#   - Check that every required field is present
-#   - Check that every field has the correct type
-#   - Raise a ValidationError immediately if anything is wrong
 #
-# This is the "contract" between the AI output and the rest of the app.
-# The desktop app, the exporter, and the tabs all read from these models.
-# =============================================================================
+# These are Pydantic models — they act as both type hints and validators.
+# When the compiler parses JSON from the AI model, it passes the raw dict
+# into VNForgeResult(**data). Pydantic checks that every required field is
+# present and has the correct type, raising ValidationError immediately if not.
+#
+# This is the contract between the AI output and the rest of the app.
 
 from pydantic import BaseModel
 from typing import List
@@ -49,8 +45,8 @@ class AssetCue(BaseModel):
     Represents one asset that the scene requires — a background, character
     sprite, music track, or sound effect.
 
-    They are istructions
-    written to the art/audio team describing what needs to be created.
+    These are instructions written to the art/audio team describing what
+    needs to be created.
 
     Fields:
         cue_type    — Category of the asset. One of:
@@ -66,9 +62,9 @@ class AssetCue(BaseModel):
                       Example: "A rainy train platform at dusk, dim yellow lights."
     """
 
-    cue_type: str   # "background" | "character" | "music" | "sound"
-    name: str       # identifier referenced in renpy_script
-    description: str  # brief for the art/audio team
+    cue_type: str
+    name: str
+    description: str
 
 
 class VNForgeResult(BaseModel):
