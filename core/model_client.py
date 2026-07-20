@@ -4,12 +4,13 @@
 #
 # Supported providers (set via PROVIDER in .env):
 #   "watsonx"   — IBM watsonx.ai, Granite 3.1 8B Instruct (free on Lite plan)
-#   "gemini"    — Google Gemini 1.5 Flash (free tier, no card needed)
+#   "gemini"    — Google Gemini 2.5 Flash (free tier, no card needed)
 #   "openrouter" — OpenRouter.ai, routes to many models (free + paid tiers)
 
 import os
 import json
 import requests
+from json_repair import repair_json
 from dotenv import load_dotenv
 
 from core.schemas import VNForgeResult
@@ -26,7 +27,8 @@ WATSONX_PROJECT_ID = os.getenv("WATSONX_PROJECT_ID", "")
 WATSONX_MODEL_ID = "ibm/granite-3-1-8b-instruct"
 
 # Google Gemini
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_MODEL  = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # OpenRouter
@@ -135,7 +137,7 @@ def _call_watsonx(prompt: str) -> str:
 
 
 def _call_gemini(prompt: str) -> str:
-    """Send a prompt to Google Gemini 1.5 Flash and return the raw generated text."""
+    """Send a prompt to Google Gemini 2.5 Flash and return the raw generated text."""
     url = f"{GEMINI_API_URL}?key={GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -180,54 +182,94 @@ def _call_openrouter(prompt: str) -> str:
 def _extract_json(raw_text: str) -> dict:
     """Extract and parse a JSON object from a raw model response string.
 
-    Handles markdown code fences (```json ... ```) that some models emit.
-    Raises ValueError if no valid JSON object can be found.
+    Three-layer approach:
+      a) Strip markdown code fences and any surrounding prose, then isolate
+         the outermost {...} block.
+      b) Try a strict json.loads(); if that fails, try json_repair which
+         tolerates minor issues like missing/trailing commas.
+      c) If both fail, raise ValueError so call_model can trigger a retry.
     """
     text = raw_text.strip()
+
+    # Layer (a): strip markdown fences —————————————————————————————————————
+    # Remove opening fence (```json, ``` etc.) and closing fence.
     if text.startswith("```"):
+        # Drop the first line (the fence opener) then strip a trailing fence.
         text = text.split("\n", 1)[-1]
-        if text.endswith("```"):
-            text = text.rsplit("```", 1)[0]
+        if text.rstrip().endswith("```"):
+            text = text.rstrip().rsplit("```", 1)[0]
     text = text.strip()
+
+    # Isolate the outermost { … } block, skipping any preamble prose.
     start = text.find("{")
-    end = text.rfind("}") + 1
+    end   = text.rfind("}") + 1
     if start == -1 or end == 0:
         raise ValueError("No JSON object found in model response.")
+    candidate = text[start:end]
+
+    # Layer (b): strict parse, then tolerant repair ————————————————————————
     try:
-        return json.loads(text[start:end])
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON parse failed: {e}")
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+
+    repaired = repair_json(candidate, return_objects=True)
+    if isinstance(repaired, dict) and repaired:
+        return repaired
+
+    raise ValueError(
+        f"JSON parse failed after repair attempt. "
+        f"First 200 chars of candidate: {candidate[:200]!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def call_model(prompt: str) -> VNForgeResult:
-    """Route the prompt to the active provider and return a validated VNForgeResult.
+def _raw_call(prompt: str) -> str:
+    """Dispatch to the active provider and return the raw text string.
 
-    The active provider is read from PROVIDER in .env.
-    Raises RuntimeError if the provider is unconfigured or the call fails.
+    Separated from call_model so the retry logic can call it a second time
+    without duplicating the provider-selection block.
     """
     if PROVIDER == "watsonx":
         if not all([WATSONX_API_KEY, WATSONX_PROJECT_ID]):
             raise RuntimeError("WATSONX_API_KEY and WATSONX_PROJECT_ID must be set in .env")
-        raw = _call_watsonx(prompt)
+        return _call_watsonx(prompt)
 
-    elif PROVIDER == "gemini":
+    if PROVIDER == "gemini":
         if not GEMINI_API_KEY:
             raise RuntimeError("GEMINI_API_KEY must be set in .env")
-        raw = _call_gemini(prompt)
+        return _call_gemini(prompt)
 
-    elif PROVIDER == "openrouter":
+    if PROVIDER == "openrouter":
         if not OPENROUTER_API_KEY:
             raise RuntimeError("OPENROUTER_API_KEY must be set in .env")
-        raw = _call_openrouter(prompt)
+        return _call_openrouter(prompt)
 
-    else:
-        raise RuntimeError(
-            f"Unknown or missing PROVIDER '{PROVIDER}' in .env. "
-            "Expected: watsonx, gemini, or openrouter."
-        )
+    raise RuntimeError(
+        f"Unknown or missing PROVIDER '{PROVIDER}' in .env. "
+        "Expected: watsonx, gemini, or openrouter."
+    )
 
+
+def call_model(prompt: str) -> VNForgeResult:
+    """Route the prompt to the active provider and return a validated VNForgeResult.
+
+    The active provider is read from PROVIDER in .env.
+    On a JSON extraction failure the model is called once more before the
+    error is surfaced to the caller.
+    Raises RuntimeError if the provider is unconfigured or the API call fails.
+    """
+    raw = _raw_call(prompt)
+
+    # Layer (c): one retry on JSON extraction failure ————————————————————————
+    try:
+        return VNForgeResult(**_extract_json(raw))
+    except (ValueError, TypeError):
+        pass
+
+    # Second attempt — ask the model again; new response may be well-formed.
+    raw = _raw_call(prompt)
     return VNForgeResult(**_extract_json(raw))

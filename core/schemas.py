@@ -8,7 +8,7 @@
 #
 # This is the contract between the AI output and the rest of the app.
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 
@@ -103,5 +103,5 @@ class VNForgeResult(BaseModel):
     scene_summary: str
     renpy_script: str
     choices: List[VNChoice]
-    asset_cues: List[AssetCue]
-    production_notes: List[str]
+    asset_cues: List[AssetCue] = Field(default_factory=list)
+    production_notes: List[str] = Field(default_factory=list)

@@ -7,6 +7,7 @@
 
 import sys
 import os
+import logging
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,7 +29,39 @@ _DEPTH_MAP = {
     "Deep (5+ choices)":    "deep",
 }
 
-_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+_ENV_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+_LOG_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vnforge_errors.log")
+
+logging.basicConfig(
+    filename=_LOG_PATH,
+    level=logging.ERROR,
+    format="%(asctime)s  %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+_log = logging.getLogger("vnforge")
+
+
+def _classify_error(raw: str) -> str:
+    """Map a raw RuntimeError message to a short, user-friendly string.
+
+    The full error is logged to vnforge_errors.log by the caller.
+    """
+    low = raw.lower()
+    if "429" in raw:
+        return (
+            "Rate limit reached. Wait a minute or switch provider "
+            "(Change Provider button)."
+        )
+    if any(k in low for k in ("401", "403", "invalid", "api key", "key rejected",
+                               "api_key", "permission denied")):
+        return "API key rejected. Check your provider settings."
+    if any(k in low for k in ("timeout", "timed out", "connection", "network")):
+        return "Network error. Check your internet connection and try again."
+    if "no json" in low or "json parse" in low:
+        return "Model returned an unexpected response. Try compiling again."
+    # Unknown — show a trimmed first line so the status bar stays readable.
+    first_line = raw.splitlines()[0]
+    return first_line[:120] + ("…" if len(first_line) > 120 else "")
 
 # Provider metadata shown in the picker screen.
 _PROVIDERS = [
@@ -443,10 +476,15 @@ class VNForgeApp(ctk.CTk):
         self._continue_btn.grid(row=2, column=0, sticky="ew")
         self._continue_frame.grid_remove()  # hidden until first compile
 
-        self.status_label = ctk.CTkLabel(left, text="Ready.",
+        # Status row: a frame so the status label and optional Details button
+        # can sit side-by-side using pack inside a single grid cell.
+        self._status_frame = ctk.CTkFrame(left, fg_color="transparent")
+        self._status_frame.grid(row=6, column=0, padx=12, pady=(4, 10))
+
+        self.status_label = ctk.CTkLabel(self._status_frame, text="Ready.",
                                          font=ctk.CTkFont(size=11),
                                          text_color="#8b8fa8")
-        self.status_label.grid(row=6, column=0, padx=12, pady=(4, 10))
+        self.status_label.pack(side="left")
 
         self.prose_box.bind("<FocusIn>", self._clear_placeholder)
         self.prose_box.bind("<FocusOut>", self._restore_placeholder)
@@ -540,11 +578,56 @@ class VNForgeApp(ctk.CTk):
 
         threading.Thread(target=run, daemon=True).start()
 
-    def _on_compile_error(self, message: str):
+    def _on_compile_error(self, raw: str):
+        _log.error(raw)
+        short = _classify_error(raw)
         self.compile_btn.configure(state="normal", text="⚙  Compile Scene")
-        self._set_status(f"✗ {message}", "#ef4444")
+        self._set_status(f"✗ {short}", "#ef4444")
+        # Replace any previous Details button; pack it right of the status label.
+        if hasattr(self, "_detail_btn") and self._detail_btn.winfo_exists():
+            self._detail_btn.destroy()
+        self._detail_raw = raw
+        self._detail_btn = ctk.CTkButton(
+            self._status_frame,
+            text="Details…",
+            width=70,
+            height=24,
+            fg_color="#3b3b4f",
+            hover_color="#52526e",
+            text_color="#c0c0d0",
+            font=ctk.CTkFont(size=12),
+            command=self._show_error_detail,
+        )
+        self._detail_btn.pack(side="left", padx=(6, 0))
+
+    def _show_error_detail(self):
+        """Open a small modal with the full error text and a log-file note."""
+        win = ctk.CTkToplevel(self)
+        win.title("Error detail")
+        win.geometry("660x360")
+        win.resizable(True, True)
+        win.grab_set()
+
+        box = ctk.CTkTextbox(win, wrap="word", font=ctk.CTkFont(family="Courier", size=12))
+        box.pack(fill="both", expand=True, padx=12, pady=(12, 4))
+        detail = getattr(self, "_detail_raw", "")
+        box.insert("1.0", detail)
+        box.configure(state="disabled")
+
+        note = ctk.CTkLabel(
+            win,
+            text=f"Full log: {_LOG_PATH}",
+            font=ctk.CTkFont(size=11),
+            text_color="#57606a",
+        )
+        note.pack(pady=(0, 8))
+
+        ctk.CTkButton(win, text="Close", width=80, command=win.destroy).pack(pady=(0, 10))
 
     def _display_output(self, scene):
+        # Clear any error Details button left from a previous failed compile.
+        if hasattr(self, "_detail_btn") and self._detail_btn.winfo_exists():
+            self._detail_btn.destroy()
         self._compiled_scene = scene
 
         self._write_tab("Ren'Py Script", scene.renpy_script)

@@ -1,4 +1,5 @@
 customtkinter
+json-repair
 pydantic
 python-dotenv
 requests

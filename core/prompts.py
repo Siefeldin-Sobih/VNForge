@@ -6,6 +6,84 @@ from typing import Literal
 
 # Maps genre names to a short tone instruction injected into the prompt.
 # Falls back to a neutral instruction for unrecognised genres.
+
+# ---------------------------------------------------------------------------
+# Shared schema block — injected verbatim into both compile and continue prompts.
+# ---------------------------------------------------------------------------
+_SCHEMA_BLOCK = """\
+## Output rules — read carefully:
+- Output ONLY a single JSON object. No explanation, no markdown, no code fences.
+- ALL SIX fields listed below are MANDATORY and must ALWAYS be present.
+  Never omit a field, even if you have nothing to say — use an empty list []
+  or an empty string "" rather than skipping the key entirely.
+- All string values must be plain text (no Markdown inside JSON strings).
+- `renpy_script` must be valid Ren'Py syntax using `label`, `show`, `play music`, and dialogue lines.
+- `choices` must reflect meaningful player decisions from the scene.
+- `variable_change` uses the format "flag_name = value", e.g. "trust_alex = True".
+- `route_label` is a valid Ren'Py label name (snake_case, no spaces).
+- `asset_cues` must include backgrounds, character sprites, and music/sound as needed.
+- `production_notes` are short developer reminders (animation, pacing, voice acting, etc.).
+
+## Required JSON schema (all six fields are mandatory):
+{
+  "scene_title": "string",
+  "scene_summary": "string (1-2 sentences)",
+  "renpy_script": "string (full Ren'Py scene script)",
+  "choices": [
+    {
+      "choice_text": "string (what the player sees)",
+      "variable_change": "string (e.g. trust_alex = True)",
+      "route_label": "string (snake_case label)",
+      "consequence": "string (brief outcome description)"
+    }
+  ],
+  "asset_cues": [
+    {
+      "cue_type": "background | character | music | sound",
+      "name": "string (asset identifier)",
+      "description": "string (visual/audio description for the artist)"
+    }
+  ],
+  "production_notes": ["string", "string"]
+}
+
+## Example of a fully populated response (all six fields present):
+{
+  "scene_title": "The Rainy Platform",
+  "scene_summary": "Yuki waits alone on a rain-soaked platform, unsure whether to board the last train.",
+  "renpy_script": "label scene_rainy_platform:\\n    scene bg_train_station\\n    play music music_melancholy\\n    yuki \\"The train leaves in three minutes.\\"\\n    menu:\\n        \\"Board the train.\\":\\n            jump route_leave\\n        \\"Stay and wait.\\":\\n            jump route_stay",
+  "choices": [
+    {
+      "choice_text": "Board the train.",
+      "variable_change": "yuki_left = True",
+      "route_label": "route_leave",
+      "consequence": "Yuki leaves the city, cutting ties with everyone she knows."
+    },
+    {
+      "choice_text": "Stay and wait.",
+      "variable_change": "yuki_left = False",
+      "route_label": "route_stay",
+      "consequence": "Yuki misses the train and must face what she was running from."
+    }
+  ],
+  "asset_cues": [
+    {
+      "cue_type": "background",
+      "name": "bg_train_station",
+      "description": "A rainy train platform at dusk, dim yellow overhead lights, puddles on the concrete."
+    },
+    {
+      "cue_type": "music",
+      "name": "music_melancholy",
+      "description": "Slow, sparse piano piece conveying loneliness and quiet dread."
+    }
+  ],
+  "production_notes": [
+    "Rain ambient sound should layer under the music from scene start.",
+    "Yuki sprite should use the 'uncertain' expression throughout."
+  ]
+}"""
+
 GENRE_HINTS = {
     "romance":       "Focus on emotional tension, inner monologue, and meaningful character choices.",
     "mystery":       "Build suspense, plant subtle clues, and keep the reader guessing.",
@@ -64,40 +142,9 @@ Your job is to convert a plain prose scene into a structured visual novel output
 ---
 
 ## Your task:
-Convert the scene above into a structured JSON object. Follow the schema exactly.
+Convert the scene above into a structured JSON object.
 
-Rules:
-- Output ONLY valid JSON. No explanation, no markdown, no code fences.
-- All string values must be plain text (no Markdown inside JSON strings).
-- `renpy_script` must be valid Ren'Py syntax using `label`, `show`, `play music`, and dialogue lines.
-- `choices` must reflect meaningful player decisions from the scene.
-- `variable_change` uses the format "flag_name = value", e.g. "trust_alex = True".
-- `route_label` is a valid Ren'Py label name (snake_case, no spaces).
-- `asset_cues` must include backgrounds, character sprites, and music/sound as needed.
-- `production_notes` are short developer reminders (animation, pacing, voice acting, etc.).
-
-## Required JSON schema:
-{{
-  "scene_title": "string",
-  "scene_summary": "string (1-2 sentences)",
-  "renpy_script": "string (full Ren'Py scene script)",
-  "choices": [
-    {{
-      "choice_text": "string (what the player sees)",
-      "variable_change": "string (e.g. trust_alex = True)",
-      "route_label": "string (snake_case label)",
-      "consequence": "string (brief outcome description)"
-    }}
-  ],
-  "asset_cues": [
-    {{
-      "cue_type": "background | character | music | sound",
-      "name": "string (asset identifier)",
-      "description": "string (visual/audio description for the artist)"
-    }}
-  ],
-  "production_notes": ["string", "string"]
-}}
+{_SCHEMA_BLOCK}
 
 Now output the JSON:"""
 
@@ -157,39 +204,8 @@ This scene is a direct continuation of a previous scene — maintain story conti
 
 ## Your task:
 Convert the new scene above into a structured JSON object that continues naturally
-from the previous scene and the player's chosen route. Follow the schema exactly.
+from the previous scene and the player's chosen route.
 
-Rules:
-- Output ONLY valid JSON. No explanation, no markdown, no code fences.
-- All string values must be plain text (no Markdown inside JSON strings).
-- `renpy_script` must be valid Ren'Py syntax using `label`, `show`, `play music`, and dialogue lines.
-- `choices` must reflect meaningful player decisions from the scene.
-- `variable_change` uses the format "flag_name = value", e.g. "trust_alex = True".
-- `route_label` is a valid Ren'Py label name (snake_case, no spaces).
-- `asset_cues` must include backgrounds, character sprites, and music/sound as needed.
-- `production_notes` are short developer reminders (animation, pacing, voice acting, etc.).
-
-## Required JSON schema:
-{{
-  "scene_title": "string",
-  "scene_summary": "string (1-2 sentences)",
-  "renpy_script": "string (full Ren'Py scene script)",
-  "choices": [
-    {{
-      "choice_text": "string (what the player sees)",
-      "variable_change": "string (e.g. trust_alex = True)",
-      "route_label": "string (snake_case label)",
-      "consequence": "string (brief outcome description)"
-    }}
-  ],
-  "asset_cues": [
-    {{
-      "cue_type": "background | character | music | sound",
-      "name": "string (asset identifier)",
-      "description": "string (visual/audio description for the artist)"
-    }}
-  ],
-  "production_notes": ["string", "string"]
-}}
+{_SCHEMA_BLOCK}
 
 Now output the JSON:"""
