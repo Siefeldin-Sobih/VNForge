@@ -34,6 +34,7 @@ class SettingsTests(unittest.TestCase):
         providers = (
             ("openai", "OPENAI_API_KEY", "OPENAI_MODEL", "gpt-test"),
             ("anthropic", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "claude-test"),
+            ("opencode", "OPENCODE_API_KEY", "OPENCODE_MODEL", "deepseek-test"),
         )
         with tempfile.TemporaryDirectory() as directory:
             for provider, secret_name, model_name, model in providers:

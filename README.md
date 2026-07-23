@@ -46,7 +46,7 @@ Requirements:
 
 - Python 3.10 or newer
 - Internet access for model inference
-- An IBM watsonx, Gemini, OpenRouter, OpenAI, or Anthropic API key
+- An IBM watsonx, Gemini, OpenRouter, OpenAI, Anthropic, or OpenCode Go API key
 
 ```bash
 git clone https://github.com/Siefeldin-Sobih/VNForge.git
@@ -135,6 +135,7 @@ The app invokes the documented `lint --error-code` workflow and reports the resu
 | **OpenRouter** | API key, model | Loads the currently advertised free models; paid models may also be configured. |
 | **OpenAI** | API key, model | Connects directly to OpenAI, loads text-generation models available to the key, and requests JSON output. |
 | **Anthropic** | API key, model | Connects directly to Anthropic, loads available Claude models, and uses structured output when the selected model supports it. |
+| **OpenCode Go** | API key, model | Uses the low-cost Go subscription, loads its live model catalog, validates the chosen model, and routes each model through its documented compatible endpoint. |
 
 Hosted model catalogs and pricing change. VNForge therefore validates live provider configuration, uses bounded rate-limit/server retries, and repairs malformed JSON before rejecting a generation.
 

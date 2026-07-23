@@ -10,9 +10,15 @@ Tester log — verified behaviour, open defects, and how automated checks relate
 
 Core product path is confirmed: prose in → playable Ren'Py project out. Lint (v8.5.3), playable export, scene chaining, and Story Map all work in manual verification.
 
-The implementation review fixed **BUG-01** through **BUG-06** and added offline regression coverage. **BUG-07** now has explicit rollback configuration and needs one final manual Ren'Py playtest. The complete offline suite passes with 38 tests.
+The implementation review fixed **BUG-01** through **BUG-06** and added offline regression coverage. **BUG-07** now has explicit rollback configuration and needs one final manual Ren'Py playtest. The complete offline suite passes with 41 tests.
 
 Earlier the same day on branch `fix/model-and-parsing`: Gemini model configurability and defaults, hardened JSON parsing/repair, schema defaults for missing optional fields, and clearer error UX (readable messages; app returns to ready state without restart).
+
+Follow-up provider audit: direct OpenAI and Anthropic support remains present.
+OpenAI uses the Responses API with structured output and Anthropic uses the
+Messages API with structured output plus compatibility fallback. OpenCode Go
+was added as a separate low-cost subscription provider with live model
+discovery and routing for both of its documented API families.
 
 ---
 
@@ -153,7 +159,7 @@ walkthrough. Low effort, high visual payoff.
 | Suite | `pytest` under `tests/` |
 | Live models | None — fake provider / fixtures only |
 | Runtime | ~1s |
-| Current state | 38 passing; BUG-01 through BUG-06 have regression coverage |
+| Current state | 41 passing; BUG-01 through BUG-06 and provider routing have regression coverage |
 
 **Known gaps** (cannot be tested this way):
 

@@ -97,7 +97,7 @@ class SetupWindow(ctk.CTk):
         ).pack(pady=(0, 16))
         provider_row = ctk.CTkSegmentedButton(
             self,
-            values=["watsonx", "gemini", "openrouter", "openai", "anthropic"],
+            values=["watsonx", "gemini", "openrouter", "openai", "anthropic", "opencode"],
             variable=self.provider_var,
             command=lambda _value: self._show_provider(),
         )
@@ -195,13 +195,19 @@ class SetupWindow(ctk.CTk):
             self.model_menu.pack(fill="x", padx=18)
             self.load_models_button.pack(fill="x", padx=18, pady=10)
         elif provider == "openai":
-            self.model_var.set("gpt-5.6-terra")
+            self.model_var.set("gpt-5.1")
             self.model_menu.configure(values=[self.model_var.get()])
             self.model_label.pack(fill="x", padx=18, pady=(10, 2))
             self.model_menu.pack(fill="x", padx=18)
             self.load_models_button.pack(fill="x", padx=18, pady=10)
         elif provider == "anthropic":
             self.model_var.set("claude-sonnet-5")
+            self.model_menu.configure(values=[self.model_var.get()])
+            self.model_label.pack(fill="x", padx=18, pady=(10, 2))
+            self.model_menu.pack(fill="x", padx=18)
+            self.load_models_button.pack(fill="x", padx=18, pady=10)
+        elif provider == "opencode":
+            self.model_var.set("deepseek-v4-flash")
             self.model_menu.configure(values=[self.model_var.get()])
             self.model_label.pack(fill="x", padx=18, pady=(10, 2))
             self.model_menu.pack(fill="x", padx=18)
@@ -235,10 +241,14 @@ class SetupWindow(ctk.CTk):
                     from core.model_client import fetch_openai_models
 
                     models = fetch_openai_models(key)
-                else:
+                elif provider == "anthropic":
                     from core.model_client import fetch_anthropic_models
 
                     models = fetch_anthropic_models(key)
+                else:
+                    from core.model_client import fetch_opencode_models
+
+                    models = fetch_opencode_models(key)
                 self.after(0, lambda: self._models_loaded(models))
             except Exception as error:
                 message = str(error)
@@ -277,10 +287,12 @@ class SetupWindow(ctk.CTk):
                     fetch_anthropic_models,
                     fetch_gemini_models,
                     fetch_openai_models,
+                    fetch_opencode_models,
                     fetch_openrouter_models,
                     validate_anthropic,
                     validate_gemini,
                     validate_openai,
+                    validate_opencode,
                     validate_openrouter,
                     validate_watsonx,
                 )
@@ -320,13 +332,21 @@ class SetupWindow(ctk.CTk):
                         "OPENAI_API_KEY": key,
                         "OPENAI_MODEL": model,
                     }
-                else:
+                elif provider == "anthropic":
                     validate_anthropic(key)
                     models = fetch_anthropic_models(key)
                     model = selected_model if selected_model in models else models[0]
                     values = {
                         "ANTHROPIC_API_KEY": key,
                         "ANTHROPIC_MODEL": model,
+                    }
+                else:
+                    models = fetch_opencode_models(key)
+                    model = selected_model if selected_model in models else models[0]
+                    validate_opencode(key, model)
+                    values = {
+                        "OPENCODE_API_KEY": key,
+                        "OPENCODE_MODEL": model,
                     }
                 save_provider_settings(str(ENV_PATH), provider, values)
                 self.after(0, self._launch_main)
@@ -353,6 +373,7 @@ class SetupWindow(ctk.CTk):
             "openrouter": "https://openrouter.ai/keys",
             "openai": "https://platform.openai.com/api-keys",
             "anthropic": "https://console.anthropic.com/settings/keys",
+            "opencode": "https://opencode.ai/auth",
         }
         webbrowser.open(urls[self.provider_var.get()])
 
@@ -1374,6 +1395,8 @@ def _env_is_configured() -> bool:
         return bool(values.get("OPENAI_API_KEY"))
     if provider == "anthropic":
         return bool(values.get("ANTHROPIC_API_KEY"))
+    if provider == "opencode":
+        return bool(values.get("OPENCODE_API_KEY"))
     return False
 
 

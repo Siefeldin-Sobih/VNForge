@@ -15,6 +15,7 @@ SECRET_FIELDS = {
     "openrouter": "OPENROUTER_API_KEY",
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
+    "opencode": "OPENCODE_API_KEY",
 }
 
 
