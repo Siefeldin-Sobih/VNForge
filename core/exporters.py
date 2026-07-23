@@ -201,6 +201,7 @@ def export_playable_project(
     options = f'''define config.name = "{escape_text(project.title)}"
 define build.name = "{safe_filename(project.title)}"
 define config.version = "1.0"
+define config.rollback_enabled = True
 '''
     (game_dir / "options.rpy").write_text(options, encoding="utf-8")
     lint_ok, lint_output = run_renpy_lint(str(root), renpy_executable)

@@ -8,3 +8,5 @@ exports/
 *.vnforge
 .ruff_cache/
 lint.txt
+screenshots/
+vnforge_errors.log

@@ -6,6 +6,7 @@ import difflib
 import importlib
 import json
 import threading
+import time
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog
@@ -75,7 +76,7 @@ class SetupWindow(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title("VNForge — Provider Setup")
-        self.geometry("620x590")
+        self.geometry("760x590")
         self.resizable(False, False)
         self.provider_var = ctk.StringVar(value="watsonx")
         self.status_var = ctk.StringVar(value="Choose a provider and validate it.")
@@ -96,7 +97,7 @@ class SetupWindow(ctk.CTk):
         ).pack(pady=(0, 16))
         provider_row = ctk.CTkSegmentedButton(
             self,
-            values=["watsonx", "gemini", "openrouter"],
+            values=["watsonx", "gemini", "openrouter", "openai", "anthropic"],
             variable=self.provider_var,
             command=lambda _value: self._show_provider(),
         )
@@ -193,6 +194,18 @@ class SetupWindow(ctk.CTk):
             self.model_label.pack(fill="x", padx=18, pady=(10, 2))
             self.model_menu.pack(fill="x", padx=18)
             self.load_models_button.pack(fill="x", padx=18, pady=10)
+        elif provider == "openai":
+            self.model_var.set("gpt-5.6-terra")
+            self.model_menu.configure(values=[self.model_var.get()])
+            self.model_label.pack(fill="x", padx=18, pady=(10, 2))
+            self.model_menu.pack(fill="x", padx=18)
+            self.load_models_button.pack(fill="x", padx=18, pady=10)
+        elif provider == "anthropic":
+            self.model_var.set("claude-sonnet-5")
+            self.model_menu.configure(values=[self.model_var.get()])
+            self.model_label.pack(fill="x", padx=18, pady=(10, 2))
+            self.model_menu.pack(fill="x", padx=18)
+            self.load_models_button.pack(fill="x", padx=18, pady=10)
 
     def _load_models(self) -> None:
         """Load live models in a worker so setup remains responsive."""
@@ -214,10 +227,18 @@ class SetupWindow(ctk.CTk):
                     from core.model_client import fetch_openrouter_models
 
                     models = fetch_openrouter_models(key)
-                else:
+                elif provider == "gemini":
                     from core.model_client import fetch_gemini_models
 
                     models = fetch_gemini_models(key)
+                elif provider == "openai":
+                    from core.model_client import fetch_openai_models
+
+                    models = fetch_openai_models(key)
+                else:
+                    from core.model_client import fetch_anthropic_models
+
+                    models = fetch_anthropic_models(key)
                 self.after(0, lambda: self._models_loaded(models))
             except Exception as error:
                 message = str(error)
@@ -253,9 +274,13 @@ class SetupWindow(ctk.CTk):
         def worker() -> None:
             try:
                 from core.model_client import (
+                    fetch_anthropic_models,
                     fetch_gemini_models,
+                    fetch_openai_models,
                     fetch_openrouter_models,
+                    validate_anthropic,
                     validate_gemini,
+                    validate_openai,
                     validate_openrouter,
                     validate_watsonx,
                 )
@@ -279,13 +304,29 @@ class SetupWindow(ctk.CTk):
                     models = fetch_gemini_models(key)
                     model = selected_model if selected_model in models else models[0]
                     values = {"GEMINI_API_KEY": key, "GEMINI_MODEL": model}
-                else:
+                elif provider == "openrouter":
                     validate_openrouter(key)
                     models = fetch_openrouter_models(key)
                     model = selected_model if selected_model in models else models[0]
                     values = {
                         "OPENROUTER_API_KEY": key,
                         "OPENROUTER_MODEL": model,
+                    }
+                elif provider == "openai":
+                    validate_openai(key)
+                    models = fetch_openai_models(key)
+                    model = selected_model if selected_model in models else models[0]
+                    values = {
+                        "OPENAI_API_KEY": key,
+                        "OPENAI_MODEL": model,
+                    }
+                else:
+                    validate_anthropic(key)
+                    models = fetch_anthropic_models(key)
+                    model = selected_model if selected_model in models else models[0]
+                    values = {
+                        "ANTHROPIC_API_KEY": key,
+                        "ANTHROPIC_MODEL": model,
                     }
                 save_provider_settings(str(ENV_PATH), provider, values)
                 self.after(0, self._launch_main)
@@ -310,6 +351,8 @@ class SetupWindow(ctk.CTk):
             "watsonx": "https://cloud.ibm.com/catalog/services/watsonxai-runtime",
             "gemini": "https://aistudio.google.com/app/apikey",
             "openrouter": "https://openrouter.ai/keys",
+            "openai": "https://platform.openai.com/api-keys",
+            "anthropic": "https://console.anthropic.com/settings/keys",
         }
         webbrowser.open(urls[self.provider_var.get()])
 
@@ -471,6 +514,11 @@ class VNForgeApp(ctk.CTk):
         self.current_result: VNForgeResult | None = None
         self.dirty = False
         self.cancel_event: threading.Event | None = None
+        self.compile_active = False
+        self.compile_started_at = 0.0
+        self.compile_token_estimate = 0
+        self.compile_phase = "Waiting for provider"
+        self.compile_run_id = 0
         self._build_layout()
         self._refresh_all()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -705,7 +753,8 @@ class VNForgeApp(ctk.CTk):
         plan = project_scene.plan
         script = render_scene(plan)
         diagnostics = validate_scene(plan, project_scene.branching_depth)
-        diagnostics.extend(validate_renpy_source(script))
+        known_labels = {f"scene_{scene.plan.scene_id}" for scene in self.project.scenes}
+        diagnostics.extend(validate_renpy_source(script, known_labels=known_labels))
         return VNForgeResult(**plan.model_dump(), renpy_script=script, diagnostics=diagnostics)
 
     def _refresh_all(self) -> None:
@@ -895,9 +944,14 @@ class VNForgeApp(ctk.CTk):
             continuation = (source_scene_id, route_label)
         estimate = estimate_input_tokens(source, self.project)
         self.cancel_event = threading.Event()
+        self.compile_active = True
+        self.compile_started_at = time.monotonic()
+        self.compile_token_estimate = estimate
+        self.compile_phase = "Waiting for provider"
+        self.compile_run_id += 1
         self.compile_button.configure(state="disabled", text="Compiling…")
         self.cancel_button.configure(state="normal")
-        self._set_status(f"Estimated input: ~{estimate:,} tokens. Provider rates apply.")
+        self._update_compile_progress(self.compile_run_id)
 
         def worker() -> None:
             try:
@@ -936,6 +990,7 @@ class VNForgeApp(ctk.CTk):
         continuation: tuple[str, str] | None,
     ) -> None:
         """Store a validated generation and refresh project views."""
+        self.compile_active = False
         self.history.checkpoint()
         plan = ScenePlan(**result.model_dump(include=set(ScenePlan.model_fields)))
         upsert_scene(
@@ -959,6 +1014,7 @@ class VNForgeApp(ctk.CTk):
 
     def _compile_failed(self, message: str) -> None:
         """Restore generation controls after cancellation or failure."""
+        self.compile_active = False
         self.compile_button.configure(state="normal", text="Compile Scene")
         self.cancel_button.configure(state="disabled")
         self._set_status(message, error=True)
@@ -967,7 +1023,19 @@ class VNForgeApp(ctk.CTk):
         """Request cancellation between network operations."""
         if self.cancel_event:
             self.cancel_event.set()
+            self.compile_phase = "Cancellation requested; waiting for current request"
             self._set_status("Cancellation requested; waiting for the current request.")
+
+    def _update_compile_progress(self, run_id: int) -> None:
+        """Show elapsed provider wait time while a compilation is active."""
+        if not self.compile_active or run_id != self.compile_run_id:
+            return
+        elapsed = int(time.monotonic() - self.compile_started_at)
+        self._set_status(
+            f"{self.compile_phase} — {elapsed}s elapsed; "
+            f"~{self.compile_token_estimate:,} input tokens."
+        )
+        self.after(1000, lambda: self._update_compile_progress(run_id))
 
     def _apply_plan_edits(self) -> None:
         """Validate editable Scene Plan JSON and deterministically rerender it."""
@@ -976,6 +1044,10 @@ class VNForgeApp(ctk.CTk):
             return
         try:
             plan = ScenePlan.model_validate_json(self.tab_boxes["Scene Plan"].get("1.0", "end"))
+            if plan.scene_id != self.current_scene_id:
+                raise ValueError(
+                    "Scene ID is stable after creation; change the title or create a new scene instead."
+                )
             scene = next(
                 item for item in self.project.scenes if item.plan.scene_id == self.current_scene_id
             )
@@ -1298,6 +1370,10 @@ def _env_is_configured() -> bool:
         return bool(values.get("GEMINI_API_KEY"))
     if provider == "openrouter":
         return bool(values.get("OPENROUTER_API_KEY"))
+    if provider == "openai":
+        return bool(values.get("OPENAI_API_KEY"))
+    if provider == "anthropic":
+        return bool(values.get("ANTHROPIC_API_KEY"))
     return False
 
 

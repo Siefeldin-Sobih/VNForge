@@ -2,10 +2,18 @@
 
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from core.compiler import compile_scene
-from core.model_client import CompilationCancelled, _extract_json, call_model
+from core.model_client import (
+    CompilationCancelled,
+    _call_anthropic,
+    _call_openai,
+    _extract_json,
+    call_model,
+    fetch_anthropic_models,
+    fetch_openai_models,
+)
 from core.project import new_project
 from core.prompts import build_compile_prompt
 from tests.helpers import sample_plan
@@ -65,6 +73,61 @@ class CompilerModelTests(unittest.TestCase):
         self.assertIn(attack, user)
         self.assertIn("5 to 8 choices", user)
         self.assertIn('"additionalProperties":false', user)
+
+    @patch("core.model_client.SESSION.get")
+    def test_direct_provider_model_catalogs(self, get) -> None:
+        openai_response = MagicMock(status_code=200)
+        openai_response.json.return_value = {
+            "data": [
+                {"id": "gpt-4o-audio-preview"},
+                {"id": "gpt-5.6-sol"},
+                {"id": "gpt-5.6-terra"},
+            ]
+        }
+        anthropic_response = MagicMock(status_code=200)
+        anthropic_response.json.return_value = {
+            "data": [{"id": "claude-sonnet-5"}, {"id": "claude-haiku-4-5"}]
+        }
+        get.side_effect = [openai_response, anthropic_response]
+
+        self.assertEqual(fetch_openai_models("key"), ["gpt-5.6-terra", "gpt-5.6-sol"])
+        self.assertEqual(
+            fetch_anthropic_models("key"),
+            ["claude-sonnet-5", "claude-haiku-4-5"],
+        )
+        self.assertEqual(get.call_args_list[0].args[0], "https://api.openai.com/v1/models")
+        self.assertEqual(get.call_args_list[1].args[0], "https://api.anthropic.com/v1/models")
+
+    @patch("core.model_client.SESSION.post")
+    def test_direct_openai_uses_chat_json_mode(self, post) -> None:
+        response = MagicMock(status_code=200, text="")
+        response.json.return_value = {
+            "choices": [{"message": {"content": '{"scene_id":"arrival"}'}}]
+        }
+        post.return_value = response
+
+        self.assertEqual(_call_openai("system", "user"), '{"scene_id":"arrival"}')
+        request = post.call_args
+        self.assertEqual(request.args[0], "https://api.openai.com/v1/chat/completions")
+        self.assertEqual(request.kwargs["json"]["response_format"], {"type": "json_object"})
+        self.assertIn("Authorization", request.kwargs["headers"])
+
+    @patch("core.model_client.SESSION.post")
+    def test_direct_anthropic_uses_messages_structured_output(self, post) -> None:
+        response = MagicMock(status_code=200, text="")
+        response.json.return_value = {
+            "content": [{"type": "text", "text": '{"scene_id":"arrival"}'}]
+        }
+        post.return_value = response
+
+        self.assertEqual(_call_anthropic("system", "user"), '{"scene_id":"arrival"}')
+        request = post.call_args
+        self.assertEqual(request.args[0], "https://api.anthropic.com/v1/messages")
+        self.assertEqual(
+            request.kwargs["json"]["output_config"]["format"]["type"],
+            "json_schema",
+        )
+        self.assertEqual(request.kwargs["headers"]["anthropic-version"], "2023-06-01")
 
 
 if __name__ == "__main__":

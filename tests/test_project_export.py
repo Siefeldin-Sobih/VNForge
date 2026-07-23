@@ -90,6 +90,8 @@ class ProjectExportTests(unittest.TestCase):
             script = (root_path / "game" / "script.rpy").read_text(encoding="utf-8")
             self.assertTrue((root_path / "game" / "images" / "bg_station.svg").exists())
             self.assertTrue((root_path / "game" / "images" / "mia.svg").exists())
+            options = (root_path / "game" / "options.rpy").read_text(encoding="utf-8")
+            self.assertIn("define config.rollback_enabled = True", options)
             self.assertFalse(validate_renpy_source(script))
             self.assertFalse(lint_ok)
             self.assertIn("static validation passed", lint_output)

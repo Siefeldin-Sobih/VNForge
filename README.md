@@ -46,7 +46,7 @@ Requirements:
 
 - Python 3.10 or newer
 - Internet access for model inference
-- An IBM watsonx, Gemini, or OpenRouter API key
+- An IBM watsonx, Gemini, OpenRouter, OpenAI, or Anthropic API key
 
 ```bash
 git clone https://github.com/Siefeldin-Sobih/VNForge.git
@@ -133,6 +133,8 @@ The app invokes the documented `lint --error-code` workflow and reports the resu
 | **IBM watsonx.ai** | API key, project ID, region, model | Recommended. VNForge fetches current Granite models for the selected region and verifies a minimal project inference. |
 | **Google Gemini** | API key, model | Loads currently available Flash models and uses JSON response mode. |
 | **OpenRouter** | API key, model | Loads the currently advertised free models; paid models may also be configured. |
+| **OpenAI** | API key, model | Connects directly to OpenAI, loads text-generation models available to the key, and requests JSON output. |
+| **Anthropic** | API key, model | Connects directly to Anthropic, loads available Claude models, and uses structured output when the selected model supports it. |
 
 Hosted model catalogs and pricing change. VNForge therefore validates live provider configuration, uses bounded rate-limit/server retries, and repairs malformed JSON before rejecting a generation.
 
@@ -155,7 +157,7 @@ Install development tools and run the full local checks:
 ```bash
 python -m pip install -r requirements-dev.txt
 ruff check .
-python -m unittest discover -s tests -v
+python -m pytest tests -v
 python -m compileall -q app.py run.py core tests
 ```
 

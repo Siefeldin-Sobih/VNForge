@@ -93,6 +93,8 @@ Security and fidelity rules:
 - Use only identifiers that match ^[A-Za-z][A-Za-z0-9_]*$.
 - Every scene/show/hide/music/sound beat must reference a declared asset cue.
 - Use dialogue beats for spoken text and narration beats for narrative text.
+- Use boolean state changes as action flags, set them to true when the choice occurs,
+  and assume VNForge initializes them to false before the player acts.
 - Keep descriptions useful to human artists and audio creators.
 - Return JSON conforming exactly to the supplied schema."""
     genre_hint = GENRE_HINTS.get(genre, "Use a clear, engaging tone.")

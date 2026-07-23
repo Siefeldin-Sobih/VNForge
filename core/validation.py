@@ -127,7 +127,10 @@ def validate_scene(plan: ScenePlan, branching_depth: str) -> list[Diagnostic]:
     return findings
 
 
-def validate_renpy_source(source: str) -> list[Diagnostic]:
+def validate_renpy_source(
+    source: str,
+    known_labels: set[str] | None = None,
+) -> list[Diagnostic]:
     """Perform fast static label and jump checks without requiring Ren'Py."""
     findings: list[Diagnostic] = []
     labels = re.findall(r"(?m)^label\s+([A-Za-z][A-Za-z0-9_]*):", source)
@@ -141,7 +144,7 @@ def validate_renpy_source(source: str) -> list[Diagnostic]:
                 message=f"Ren'Py label '{label}' is defined more than once.",
             )
         )
-    known = set(labels)
+    known = set(labels) | (known_labels or set())
     for target in sorted(set(jumps) - known):
         findings.append(
             Diagnostic(
@@ -199,6 +202,7 @@ def analyze_project(project: VNProject) -> list[Diagnostic]:
             )
         )
     variable_types: dict[str, type] = {}
+    variable_signatures: dict[frozenset[str], dict[str, set[str]]] = {}
     asset_descriptions: dict[str, str] = {}
     asset_types: dict[str, str] = {}
     known_characters = {character.character_id for character in project.characters}
@@ -229,6 +233,10 @@ def analyze_project(project: VNProject) -> list[Diagnostic]:
                             message=f"Variable '{change.name}' changes value type.",
                         )
                     )
+                tokens = [_normalize_flag_token(part) for part in change.name.split("_") if part]
+                signature = frozenset(tokens)
+                names = variable_signatures.setdefault(signature, {})
+                names.setdefault(change.name, set()).add(plan.scene_id)
         for beat in plan.beats:
             if beat.speaker and known_characters and beat.speaker not in known_characters:
                 findings.append(
@@ -271,7 +279,27 @@ def analyze_project(project: VNProject) -> list[Diagnostic]:
                         message=f"Asset '{asset.name}' has inconsistent descriptions.",
                     )
                 )
+    for names in variable_signatures.values():
+        scenes = set().union(*names.values())
+        if len(names) > 1 and len(scenes) > 1:
+            joined = ", ".join(sorted(names))
+            findings.append(
+                Diagnostic(
+                    severity="warning",
+                    code="variable_name_drift",
+                    message=f"Possible renamed state variable across scenes: {joined}.",
+                )
+            )
     return findings
+
+
+def _normalize_flag_token(token: str) -> str:
+    """Reduce common English suffix variants for continuity comparisons."""
+    lowered = token.lower()
+    for suffix in ("ing", "ed", "es", "s"):
+        if len(lowered) > len(suffix) + 2 and lowered.endswith(suffix):
+            return lowered[: -len(suffix)]
+    return lowered
 
 
 def find_renpy_executable(configured_path: str = "") -> str | None:

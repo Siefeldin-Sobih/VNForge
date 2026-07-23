@@ -31,6 +31,9 @@ def compile_scene(
     """Compile prose into a validated plan and deterministic Ren'Py source."""
     from core.model_client import call_model
 
+    if not scene_text.strip():
+        raise ValueError("Creator prose is empty. Paste prose before compiling.")
+
     system, user = build_compile_prompt(
         scene_text,
         genre,
@@ -70,18 +73,10 @@ def compile_scene(
         messages = "; ".join(item.message for item in diagnostics if item.severity == "error")
         raise ValueError(f"Generated scene failed semantic validation: {messages}")
     script = render_scene(plan)
-    static_diagnostics = validate_renpy_source(script)
     allowed_project_targets = (
         {f"scene_{item.plan.scene_id}" for item in project.scenes} if project else set()
     )
-    static_diagnostics = [
-        item
-        for item in static_diagnostics
-        if not (
-            item.code == "missing_label"
-            and any(target in item.message for target in allowed_project_targets)
-        )
-    ]
+    static_diagnostics = validate_renpy_source(script, known_labels=allowed_project_targets)
     diagnostics.extend(static_diagnostics)
     if any(item.severity == "error" for item in diagnostics):
         messages = "; ".join(item.message for item in diagnostics if item.severity == "error")

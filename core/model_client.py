@@ -27,9 +27,16 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-terra")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
 
 IAM_URL = "https://iam.cloud.ibm.com/identity/token"
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENAI_API_URL = "https://api.openai.com/v1"
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1"
+ANTHROPIC_VERSION = "2023-06-01"
 
 
 def _build_session() -> requests.Session:
@@ -195,6 +202,70 @@ def fetch_openrouter_models(api_key: str) -> list[str]:
     return models
 
 
+def fetch_openai_models(api_key: str) -> list[str]:
+    """Return direct OpenAI text-generation model identifiers."""
+    response = SESSION.get(
+        f"{OPENAI_API_URL}/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=20,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Could not list OpenAI models ({response.status_code}).")
+    excluded_fragments = (
+        "audio",
+        "embedding",
+        "image",
+        "moderation",
+        "realtime",
+        "search",
+        "transcribe",
+        "tts",
+    )
+    models = {
+        item.get("id", "")
+        for item in response.json().get("data", [])
+        if item.get("id", "").startswith(("gpt-", "o1", "o3", "o4"))
+        and not any(fragment in item.get("id", "").lower() for fragment in excluded_fragments)
+    }
+    if not models:
+        raise RuntimeError("No OpenAI text-generation models are available to this API key.")
+    preferred = ["gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-5.6"]
+    return [model for model in preferred if model in models] + sorted(models - set(preferred))
+
+
+def validate_openai(api_key: str) -> None:
+    """Validate a direct OpenAI key by listing its available models."""
+    fetch_openai_models(api_key)
+
+
+def fetch_anthropic_models(api_key: str) -> list[str]:
+    """Return direct Anthropic Claude model identifiers, newest first."""
+    response = SESSION.get(
+        f"{ANTHROPIC_API_URL}/models",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+        },
+        params={"limit": 1000},
+        timeout=20,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Could not list Anthropic models ({response.status_code}).")
+    models = [
+        item.get("id", "")
+        for item in response.json().get("data", [])
+        if item.get("id", "").startswith("claude-")
+    ]
+    if not models:
+        raise RuntimeError("No Anthropic Claude models are available to this API key.")
+    return models
+
+
+def validate_anthropic(api_key: str) -> None:
+    """Validate a direct Anthropic key by listing its available models."""
+    fetch_anthropic_models(api_key)
+
+
 def _call_watsonx(system: str, user: str) -> str:
     """Generate a structured scene plan using IBM watsonx."""
     token = _get_watsonx_token(WATSONX_API_KEY)
@@ -284,6 +355,89 @@ def _call_openrouter(system: str, user: str) -> str:
     return response.json()["choices"][0]["message"]["content"]
 
 
+def _call_openai(system: str, user: str) -> str:
+    """Generate a JSON scene plan through the direct OpenAI API."""
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_completion_tokens": 8192,
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    response = SESSION.post(
+        f"{OPENAI_API_URL}/chat/completions",
+        json=payload,
+        headers=headers,
+        timeout=120,
+    )
+    if response.status_code == 400 and "response_format" in response.text:
+        payload.pop("response_format")
+        response = SESSION.post(
+            f"{OPENAI_API_URL}/chat/completions",
+            json=payload,
+            headers=headers,
+            timeout=120,
+        )
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"OpenAI generation failed ({response.status_code}): {response.text[:500]}"
+        )
+    return response.json()["choices"][0]["message"]["content"]
+
+
+def _call_anthropic(system: str, user: str) -> str:
+    """Generate a structured scene plan through the direct Anthropic API."""
+    payload = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 8192,
+        "temperature": 0,
+        "system": system,
+        "messages": [{"role": "user", "content": user}],
+        "output_config": {
+            "format": {
+                "type": "json_schema",
+                "schema": ScenePlan.model_json_schema(),
+            }
+        },
+    }
+    headers = {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+        "Content-Type": "application/json",
+    }
+    response = SESSION.post(
+        f"{ANTHROPIC_API_URL}/messages",
+        json=payload,
+        headers=headers,
+        timeout=120,
+    )
+    if response.status_code == 400 and any(
+        term in response.text.lower() for term in ("output_config", "structured output")
+    ):
+        payload.pop("output_config")
+        response = SESSION.post(
+            f"{ANTHROPIC_API_URL}/messages",
+            json=payload,
+            headers=headers,
+            timeout=120,
+        )
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"Anthropic generation failed ({response.status_code}): {response.text[:500]}"
+        )
+    return "".join(
+        block.get("text", "")
+        for block in response.json().get("content", [])
+        if block.get("type") == "text"
+    )
+
+
 def _call_provider(system: str, user: str) -> str:
     """Route one request to the configured provider."""
     if PROVIDER == "watsonx":
@@ -298,11 +452,22 @@ def _call_provider(system: str, user: str) -> str:
         if not OPENROUTER_API_KEY:
             raise RuntimeError("OpenRouter credentials are not configured.")
         return _call_openrouter(system, user)
+    if PROVIDER == "openai":
+        if not OPENAI_API_KEY:
+            raise RuntimeError("OpenAI credentials are not configured.")
+        return _call_openai(system, user)
+    if PROVIDER == "anthropic":
+        if not ANTHROPIC_API_KEY:
+            raise RuntimeError("Anthropic credentials are not configured.")
+        return _call_anthropic(system, user)
     raise RuntimeError(f"Unknown or missing provider '{PROVIDER}'. Configure VNForge first.")
 
 
-def _extract_json(raw_text: str) -> dict[str, Any]:
+def _extract_json(raw_text: str | None) -> dict[str, Any]:
     """Extract the first complete JSON object from a provider response."""
+    if not isinstance(raw_text, str) or not raw_text.strip():
+        value_type = type(raw_text).__name__
+        raise ValueError(f"Provider returned an empty or null response body (got '{value_type}').")
     text = raw_text.strip()
     if text.startswith("```"):
         first_newline = text.find("\n")
@@ -341,6 +506,8 @@ def call_model(
         try:
             return ScenePlan.model_validate(_extract_json(raw))
         except (ValueError, ValidationError) as error:
+            if not isinstance(raw, str) or not raw.strip():
+                raise ValueError(str(error)) from error
             if attempt >= max_repairs:
                 raise ValueError(
                     f"Provider returned an invalid scene plan after {attempt + 1} attempts: {error}"

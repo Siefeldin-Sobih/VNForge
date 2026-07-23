@@ -67,6 +67,17 @@ def _literal(value: StateValue) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _initial_value(value: StateValue) -> StateValue:
+    """Return a neutral initial value before any player choice is made."""
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return 0
+    if isinstance(value, float):
+        return 0.0
+    return ""
+
+
 def _asset_path(asset_type: str, name: str, file_path: str = "") -> str:
     """Resolve a project-relative asset path for declarations and playback."""
     if file_path:
@@ -122,7 +133,9 @@ def render_scene(plan: ScenePlan, include_definitions: bool = True) -> str:
         for speaker, display_name in sorted(speakers.items()):
             lines.append(f'define {speaker} = Character("{escape_text(display_name)}")')
         variables = {
-            change.name: change.value for choice in plan.choices for change in choice.state_changes
+            change.name: _initial_value(change.value)
+            for choice in plan.choices
+            for change in choice.state_changes
         }
         for name, value in sorted(variables.items()):
             lines.append(f"default {name} = {_literal(value)}")
@@ -184,7 +197,7 @@ def render_project(project: VNProject) -> str:
         )
         variables.update(
             {
-                change.name: change.value
+                change.name: _initial_value(change.value)
                 for choice in plan.choices
                 for change in choice.state_changes
             }

@@ -1,5 +1,6 @@
 """Tests for secure provider settings fallback behavior."""
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,7 +25,28 @@ class SettingsTests(unittest.TestCase):
             mode = path.stat().st_mode & 0o777
         self.assertEqual(values["GEMINI_API_KEY"], 'secret"value')
         self.assertEqual(values["SECRET_STORAGE"], "env_fallback")
-        self.assertEqual(mode, 0o600)
+        # POSIX mode bits are not meaningful on Windows filesystems.
+        if os.name != "nt":
+            self.assertEqual(mode, 0o600)
+
+    @patch("core.settings._keyring_module", return_value=None)
+    def test_direct_provider_secrets_round_trip(self, _keyring) -> None:
+        providers = (
+            ("openai", "OPENAI_API_KEY", "OPENAI_MODEL", "gpt-test"),
+            ("anthropic", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "claude-test"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            for provider, secret_name, model_name, model in providers:
+                with self.subTest(provider=provider):
+                    path = Path(directory) / f"{provider}.env"
+                    save_provider_settings(
+                        str(path),
+                        provider,
+                        {secret_name: "secret", model_name: model},
+                    )
+                    values = load_provider_settings(str(path))
+                    self.assertEqual(values[secret_name], "secret")
+                    self.assertEqual(values[model_name], model)
 
 
 if __name__ == "__main__":

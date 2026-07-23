@@ -36,6 +36,7 @@ class SchemaRendererTests(unittest.TestCase):
 
     def test_renderer_escapes_text_and_uses_typed_assignments(self) -> None:
         script = render_scene(sample_plan())
+        self.assertIn("default mia_stayed = False", script)
         self.assertIn("$ mia_stayed = True", script)
         self.assertIn("{{b}", script)
         self.assertIn("[[/name]", script)
