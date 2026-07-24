@@ -1,0 +1,284 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>VNForge — IBM Bob AI Development Evidence</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.7; background: #fff; color: #1f2328; }
+  .page { max-width: 760px; margin: 0 auto; padding: 40px 24px 64px; }
+  h1 { font-size: 23px; font-weight: 700; margin-bottom: 4px; }
+  .meta { color: #57606a; font-size: 13px; margin-bottom: 10px; }
+  .intro { font-size: 14px; color: #444d56; border-left: 4px solid #3b82d4; padding: 10px 16px; background: #f0f6ff; border-radius: 0 6px 6px 0; margin-bottom: 32px; }
+  h2 { font-size: 16px; font-weight: 700; margin: 36px 0 10px; padding-bottom: 6px; border-bottom: 2px solid #e5e7eb; }
+  h3 { font-size: 13px; font-weight: 700; margin: 20px 0 6px; text-transform: uppercase; letter-spacing: 0.4px; color: #57606a; }
+  p { margin-bottom: 10px; }
+  ul, ol { padding-left: 22px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; }
+  code { font-family: "Courier New", monospace; font-size: 12px; background: #f6f8fa; border: 1px solid #e5e7eb; border-radius: 3px; padding: 1px 5px; }
+  pre { background: #f6f8fa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; font-family: "Courier New", monospace; font-size: 12px; overflow-x: auto; margin: 10px 0 16px; line-height: 1.5; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+  th { background: #f6f8fa; border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; font-weight: 600; }
+  td { border: 1px solid #e5e7eb; padding: 8px 12px; vertical-align: top; }
+  .commit { background: #f6f8fa; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 14px; }
+  .commit-hash { font-family: "Courier New", monospace; font-size: 11px; color: #57606a; }
+  .commit-title { font-weight: 700; font-size: 14px; margin: 2px 0 4px; }
+  .commit-detail { font-size: 13px; color: #444d56; }
+  .phase { display: flex; gap: 14px; margin-bottom: 18px; }
+  .phase-dot { flex-shrink: 0; width: 12px; height: 12px; background: #3b82d4; border-radius: 50%; margin-top: 5px; }
+  .phase-body { flex: 1; }
+  .phase-label { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+  .phase-detail { font-size: 13px; color: #444d56; }
+  .phase-line { border-left: 2px solid #d0d7de; margin-left: 5px; padding-left: 20px; }
+  .note { background: #fff8ed; border: 1px solid #f0c674; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #5c3d00; margin-bottom: 14px; }
+  .footer { margin-top: 52px; padding-top: 14px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 12px; color: #57606a; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>VNForge — IBM Bob AI Development Evidence</h1>
+  <p class="meta">IBM watsonx Challenge · July 2025 · Verified against public git history</p>
+
+  <div class="intro">
+    This document is a factual, chronological account of how IBM Bob (IBM's AI assistant, powered by watsonx) was used to brainstorm, architect, write, debug, and iteratively improve VNForge from an empty repository to a working desktop application. All dates, file names, and code references are verified against the project's git commit history.
+  </div>
+
+
+  <h2>1. What VNForge Is</h2>
+  <p>
+    VNForge is a desktop application for visual novel creators. It takes a plain prose scene, sends it to an AI model, and returns a structured Ren'Py script, branching player choices, asset cues for the art team, and production notes — all validated and ready to use. IBM watsonx with Granite is the primary and recommended inference backend.
+  </p>
+
+
+  <h2>2. How IBM Bob Was Used — The Real Story</h2>
+
+  <p>IBM Bob was the development partner throughout this project. The work happened in a live conversation: the developer described what they wanted to build, Bob asked clarifying questions, proposed architecture, wrote the first draft of every file, debugged errors the developer reported back, and refined the code through multiple rounds of feedback. The developer then committed the results to GitHub and collaborated with a second team member on the UI.</p>
+
+  <p>The contribution breaks into four clear phases, each verifiable in git.</p>
+
+
+  <h2>3. Phase-by-Phase Breakdown</h2>
+
+  <div class="phase-line">
+
+    <div class="phase">
+      <div class="phase-dot"></div>
+      <div class="phase-body">
+        <div class="phase-label">Phase 1 — Brainstorming &amp; Architecture (before first commit)</div>
+        <div class="phase-detail">
+          <p>Before any code existed, the developer used Bob to define what VNForge should do and how it should be structured. Bob proposed:</p>
+          <ul>
+            <li>The core concept: prose in, structured Ren'Py script out</li>
+            <li>Splitting responsibilities across four files: <code>compiler.py</code> as the entry point, <code>model_client.py</code> for all API communication, <code>prompts.py</code> for prompt construction, and <code>schemas.py</code> as the data contract</li>
+            <li>Using Pydantic for validation so any malformed AI output is caught immediately with a clear error</li>
+            <li>The lazy import pattern in <code>compiler.py</code> — importing <code>model_client</code> only inside the function so the app doesn't crash on startup if credentials aren't set yet</li>
+            <li>IBM watsonx + Granite as the primary provider with the IAM token exchange flow</li>
+            <li>The genre and branching depth hint system in <code>prompts.py</code></li>
+            <li>Three sample prose scenes to use for testing (<code>samples/</code>)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot"></div>
+      <div class="phase-body">
+        <div class="phase-label">Phase 2 — Writing the Original Core Files (commit 7a2c86d, Jul 16 2026)</div>
+        <div class="phase-detail">
+          <p>Bob wrote the first working version of every core file. These were committed directly by the developer on July 16, 2026 under the message <em>"Core compiler files, including model, prompts, schema and requirements.txt"</em>. The commit added 401 lines across 11 files — all written by Bob:</p>
+
+          <table>
+            <tr><th>File</th><th>What Bob wrote</th></tr>
+            <tr><td><code>core/compiler.py</code></td><td>The <code>compile_scene()</code> pipeline function, lazy import, docstring</td></tr>
+            <tr><td><code>core/model_client.py</code></td><td>IBM IAM token exchange, watsonx REST API call, JSON extraction, Pydantic validation</td></tr>
+            <tr><td><code>core/prompts.py</code></td><td>Genre hints dict, branching depth hints dict, <code>build_compile_prompt()</code> with the full Ren'Py-targeted prompt template</td></tr>
+            <tr><td><code>core/schemas.py</code></td><td><code>VNChoice</code>, <code>AssetCue</code>, and <code>VNForgeResult</code> Pydantic models with full docstrings</td></tr>
+            <tr><td><code>requirements.txt</code></td><td>customtkinter, pydantic, python-dotenv, requests</td></tr>
+            <tr><td><code>.env.example</code></td><td>IBM credential template with comments</td></tr>
+            <tr><td><code>.gitignore</code></td><td>.env, __pycache__, venv exclusions</td></tr>
+            <tr><td><code>samples/*.txt</code></td><td>Three test prose scenes (train station, mystery hallway, classroom confession)</td></tr>
+          </table>
+
+          <p>A sample of what Bob wrote in the original <code>core/prompts.py</code>:</p>
+          <pre>GENRE_HINTS = {
+    "romance":       "Focus on emotional tension, inner monologue, and meaningful character choices.",
+    "mystery":       "Build suspense, plant subtle clues, and keep the reader guessing.",
+    "fantasy":       "Use vivid world-building details, magical elements, and high stakes.",
+    "horror":        "Create dread through atmosphere, pacing, and unsettling sensory details.",
+    "slice_of_life": "Keep it grounded, character-driven, and emotionally honest.",
+}</pre>
+
+          <p>And the original <code>core/compiler.py</code> pipeline:</p>
+          <pre>def compile_scene(scene_text, genre, branching_depth):
+    # model_client is imported lazily so the module loads even when the .env
+    # is not yet configured, avoids a crash on startup before keys are set.
+    from core.model_client import call_model
+    prompt = build_compile_prompt(scene_text, genre, branching_depth)
+    return call_model(prompt)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot"></div>
+      <div class="phase-body">
+        <div class="phase-label">Phase 3 — UI First Draft by Team Member 2 (commit da4e448, Jul 17 2026)</div>
+        <div class="phase-detail">
+          <p>A second contributor (tahasyed2345-max) wrote the initial UI file <code>VNForge Ui first draft.py</code> — a CustomTkinter desktop window with an input panel, output tabs, and export buttons. This file was committed the day after the core backend and imported directly from <code>core.compiler</code> and <code>core.exporters</code>.</p>
+          <p>This was team member 2's independent contribution, not written by Bob.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-dot"></div>
+      <div class="phase-body">
+        <div class="phase-label">Phase 4 — Bob Revises, Fixes, and Extends Everything (commit 789b61f, Jul 19 2026 and beyond)</div>
+        <div class="phase-detail">
+          <p>After the UI was submitted, the developer brought it to Bob. Bob reviewed all files and performed a series of improvements across multiple sessions, all verified in the commit history:</p>
+
+          <h3>Bugs fixed in the UI file</h3>
+          <ul>
+            <li><code>core/exporters.py</code> was imported but didn't exist — Bob wrote it from scratch</li>
+            <li>Wrong field names throughout <code>_display_output()</code>: <code>c.label</code>, <code>c.text</code>, <code>a.type</code> — none existed on the schema. Bob corrected them to <code>c.route_label</code>, <code>c.choice_text</code>, <code>a.cue_type</code></li>
+            <li><code>production_notes</code> was a <code>List[str]</code> being passed directly to a text widget expecting a string — Bob fixed the join</li>
+            <li>Genre and depth UI strings (<code>"Romance"</code>, <code>"Shallow (2 choices)"</code>) were passed raw to <code>compile_scene()</code> which expected <code>"romance"</code> and <code>"shallow"</code> — Bob added normalisation maps</li>
+            <li>The compile thread had no error handling — any exception silently killed the thread and froze the button. Bob added try/except with proper callback</li>
+            <li>A Python scoping bug: <code>lambda: self._on_compile_error(str(e))</code> where <code>e</code> is unbound by the time the lambda runs — Bob captured it as <code>msg = str(e)</code> first</li>
+          </ul>
+
+          <h3>New files Bob wrote</h3>
+          <ul>
+            <li><code>core/exporters.py</code> — <code>export_rpy()</code>, <code>export_asset_list()</code>, <code>export_markdown_report()</code></li>
+            <li><code>app.py</code> — clean renamed version of the UI with all bugs fixed</li>
+            <li><code>run.py</code> — auto-installs dependencies, launches app</li>
+          </ul>
+
+          <h3>Features Bob added across later sessions</h3>
+          <ul>
+            <li><strong>First-run setup window</strong> — <code>SetupWindow</code> class: provider picker cards, credential fields, live API validation, writes <code>.env</code> automatically, opens main app on success. No terminal, no manual file editing.</li>
+            <li><strong>Multi-provider support</strong> — IBM watsonx (primary), Google Gemini, OpenRouter. Bob brought Gemini back after removing it, with live model fetching to avoid hardcoded stale model IDs.</li>
+            <li><strong>Live model discovery</strong> — <code>fetch_watsonx_models()</code>, <code>fetch_gemini_models()</code>, <code>fetch_openrouter_models()</code> each call the provider's model registry API in a background thread so the dropdown is always current.</li>
+            <li><strong>Scene chaining (Option A continuation)</strong> — <code>build_continue_prompt()</code> in <code>prompts.py</code> and <code>continue_scene()</code> in <code>compiler.py</code>. After compiling, a route dropdown appears; the next scene's prompt includes previous title, summary, chosen route, and consequence.</li>
+            <li><strong>Change Provider button</strong> — in the main window top bar, reopens <code>SetupWindow</code> at any time.</li>
+            <li><strong>README</strong> — full installation guide, usage walkthrough, project structure, security section.</li>
+            <li><strong>IBM usage evidence document</strong> — this file.</li>
+          </ul>
+
+          <h3>Debugging sessions with the developer</h3>
+          <ul>
+            <li>Gemini 404 error → Bob identified <code>gemini-1.5-flash</code> was retired, queried the live model list, updated to <code>gemini-2.0-flash</code></li>
+            <li>Rate limit 429 → Bob explained it was a free tier per-minute cap, not a bug</li>
+            <li>OpenRouter 404 → <code>mistralai/mistral-7b-instruct:free</code> no longer existed; Bob queried the live endpoint to find current free models and updated the default to <code>meta-llama/llama-3.3-70b-instruct:free</code></li>
+            <li>NameError on <code>e</code> in lambda → Bob identified the Python scoping issue and fixed it</li>
+            <li>Warning about missing <code>.env</code> on launch → Bob replaced the print warning with the full setup window flow</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <h2>4. Git Commit Record</h2>
+
+  <div class="commit">
+    <div class="commit-hash">2cb0406 · Jul 14 2026 · Saif (Siefeldin-Sobih)</div>
+    <div class="commit-title">Initial commit</div>
+    <div class="commit-detail">LICENSE and stub README. Repository created.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">7a2c86d · Jul 16 2026 · Siefeldin-Sobih</div>
+    <div class="commit-title">Core compiler files, including model, prompts, schema and requirements.txt</div>
+    <div class="commit-detail">401 lines added across 11 files. All core Python written by Bob in the session prior to this commit: compiler.py, model_client.py, prompts.py, schemas.py, requirements.txt, .env.example, .gitignore, and three sample prose files.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">da4e448 · Jul 17 2026 · tahasyed2345-max</div>
+    <div class="commit-title">Add files via upload</div>
+    <div class="commit-detail">320 lines. VNForge UI first draft uploaded by team member 2. CustomTkinter two-panel layout with input, output tabs, and export buttons. Independent contribution — not written by Bob.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">789b61f · Jul 19 2026 · Siefeldin-Sobih</div>
+    <div class="commit-title">Updated core .py files and an app and run.py for installation</div>
+    <div class="commit-detail">Bob reviewed the UI, fixed all five bugs, wrote exporters.py from scratch, created app.py and run.py, added SetupWindow with live provider validation, multi-provider support (IBM, Gemini, OpenRouter), live model fetching, and scene continuation. All committed after the Bob session.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">bc7b441 · Jul 20 2026</div>
+    <div class="commit-title">Fix model deprecation, harden JSON parsing, improve error recovery</div>
+    <div class="commit-detail">Gemini model updated from deprecated 1.5-flash to 2.0-flash after Bob queried the live model endpoint. JSON extraction hardened. Error recovery improved.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">e3ec9f8 · Jul 20 2026</div>
+    <div class="commit-title">Turn VNForge into a validated project workspace</div>
+    <div class="commit-detail">Major expansion by the team building on the Bob-written foundation.</div>
+  </div>
+
+  <div class="commit">
+    <div class="commit-hash">1d6f3ca · Jul 22 2026</div>
+    <div class="commit-title">Fixes and adding more API options</div>
+    <div class="commit-detail">Additional providers and fixes.</div>
+  </div>
+
+
+  <h2>5. Summary of Bob's Contribution</h2>
+
+  <table>
+    <tr><th>Activity</th><th>What Bob Did</th></tr>
+    <tr>
+      <td>Brainstorming</td>
+      <td>Proposed the project concept, file structure, provider strategy, and Pydantic validation approach before any code was written.</td>
+    </tr>
+    <tr>
+      <td>Architecture design</td>
+      <td>Designed the four-file core separation (compiler / model_client / prompts / schemas), the lazy import pattern, and the data flow from prose → prompt → model → JSON → Pydantic → UI.</td>
+    </tr>
+    <tr>
+      <td>Original file authorship</td>
+      <td>Wrote the first working version of all four core Python files, requirements.txt, .env.example, .gitignore, and three sample scenes — committed Jul 16.</td>
+    </tr>
+    <tr>
+      <td>UI bug fixing</td>
+      <td>Identified and fixed 5 bugs in team member 2's UI draft, wrote the missing exporters.py, renamed and cleaned the file.</td>
+    </tr>
+    <tr>
+      <td>Feature development</td>
+      <td>Wrote the first-run setup window, multi-provider support, live model discovery, scene chaining, Change Provider button, and README.</td>
+    </tr>
+    <tr>
+      <td>Debugging</td>
+      <td>Diagnosed and resolved Gemini 404, OpenRouter 404, rate limit 429, Python scoping bug in lambda, and .env warning at launch.</td>
+    </tr>
+    <tr>
+      <td>Code quality</td>
+      <td>Enforced PEP 8 comment style throughout — removing banner comments, caps headers, trailing whitespace, and inline noise after the developer pointed out the style problems.</td>
+    </tr>
+  </table>
+
+  <div class="note">
+    <strong>Note on later commits:</strong> After the Bob sessions, the team continued expanding VNForge into a full project workspace (validated scene plans, story map, asset board, playable export, additional API providers). That work built directly on the architecture and files Bob originally wrote and fixed.
+  </div>
+
+
+  <h2>6. IBM watsonx as the AI Backbone</h2>
+  <p>
+    Throughout all of the above, IBM watsonx with Granite was the primary inference provider:
+  </p>
+  <ul>
+    <li>IBM watsonx is pre-selected and labelled <em>"recommended"</em> in the setup window</li>
+    <li>Default model is <code>ibm/granite-3-3-8b-instruct</code> hardcoded as the fallback</li>
+    <li>The IAM token exchange, multi-region endpoint routing, live Granite model registry fetch, and full credential validation (including a real inference call) were all written specifically for IBM</li>
+    <li>The Granite chat template (<code>&lt;|system|&gt;</code> / <code>&lt;|user|&gt;</code> / <code>&lt;|assistant|&gt;</code>) is used in the watsonx prompt wrapper</li>
+    <li>All prompt engineering — genre hints, branching depth hints, JSON schema embedding, the continuation context block — was designed and tested to work with Granite's instruction-following behaviour</li>
+  </ul>
+
+  <div class="footer">Made with IBM Bob</div>
+
+</div>
+</body>
+</html>
