@@ -3,11 +3,11 @@
 ### This project was developed for IBM July's creative builders challenge. A proof of IBM usage as main development tool can be found in the html under the name "ibm_proof_july". Project actual development cycle was under a week.
 
 ### **Contributors (Alphabetical):**
-Karthik: He is our main bug tester, without his observations and thorough analysis we would've have discovered the bugs we did and our project would've have been as good.
+Karthik: He is our main bug tester, without his observations and thorough analysis we would not have discovered the bugs and our project would not have been as good.
 
 Siefeldin: Team lead and core-files developer. Fixed the reported bugs and implemented the newer features, as well as added UI adjustments.
 
-Taha: Provided the initial UI Draft that the whole project was built around.
+Taha: Provided the initial UI code that the whole project was built around.
 
 **Turn a story scene into a validated, playable visual-novel project—while keeping story branches, canon, and art production organized.**
 
