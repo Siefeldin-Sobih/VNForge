@@ -4,7 +4,9 @@
 
 ### **Contributors (Alphabetical):**
 Karthik: He is our main bug tester, without his observations and thorough analysis we would've have discovered the bugs we did and our project would've have been as good.
+
 Siefeldin: Team lead and core-files developer. Fixed the reported bugs and implemented the newer features, as well as added UI adjustments.
+
 Taha: Provided the initial UI Draft that the whole project was built around.
 
 **Turn a story scene into a validated, playable visual-novel project—while keeping story branches, canon, and art production organized.**
